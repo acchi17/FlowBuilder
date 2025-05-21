@@ -1,6 +1,7 @@
 'use strict'
 
-import { app, protocol, BrowserWindow } from 'electron'
+import { app, protocol, BrowserWindow, ipcMain } from 'electron'
+import path from 'path'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension from 'electron-devtools-installer'
 const isDevelopment = process.env.NODE_ENV !== 'production'
@@ -8,10 +9,16 @@ const isDevelopment = process.env.NODE_ENV !== 'production'
 // Vue Devtools v6 Chrome Web Store ID
 const VUEJS3_DEVTOOLS_ID = 'nhdogjmejiglipccpnnnanhbledajbpd'
 
+// Pythonサービスのインポート
+const PythonService = require('./services/PythonService')
+
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
+
+// Pythonスクリプトディレクトリ
+const PYTHON_SCRIPTS_DIR = 'python_scripts'
 
 async function createWindow() {
   // Create the browser window.
@@ -23,7 +30,8 @@ async function createWindow() {
       // Use pluginOptions.nodeIntegration, leave this alone
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
-      contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION
+      contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
+      preload: path.join(__dirname, 'preload.js')
     }
   })
 
@@ -47,6 +55,33 @@ app.on('window-all-closed', () => {
   }
 })
 
+// Pythonサービスの初期化
+async function initializePythonService() {
+  try {
+    await PythonService.initialize(PYTHON_SCRIPTS_DIR)
+    console.log('Python service initialized successfully')
+  } catch (error) {
+    console.error(`Failed to initialize Python service: ${error}`)
+  }
+}
+
+// IPC通信の設定
+function setupIPC() {
+  // スクリプト実行リクエスト
+  ipcMain.handle('execute-python-script', async (event, scriptName, params = {}) => {
+    try {
+      console.log(`Executing Python script: ${scriptName} with params:`, params);
+      
+      // パラメータを含むスクリプト実行
+      const result = await PythonService.executeScript(scriptName, params);
+      return { success: true, result };
+    } catch (error) {
+      console.error(`Error executing Python script: ${error}`);
+      return { success: false, error: error.message };
+    }
+  })
+}
+
 app.on('activate', () => {
   // On macOS it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
@@ -57,6 +92,11 @@ app.on('activate', () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.on('ready', async () => {
+  // Pythonサービスの初期化
+  await initializePythonService()
+  
+  // IPC通信の設定
+  setupIPC()
   if (isDevelopment && !process.env.IS_TEST) {
     // Install Vue Devtools
     try {
@@ -100,3 +140,10 @@ if (isDevelopment) {
     })
   }
 }
+
+// アプリケーション終了時の処理
+app.on('will-quit', () => {
+  // Pythonサービスの終了
+  PythonService.shutdown()
+  console.log('Python service shutdown')
+})
