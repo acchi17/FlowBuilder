@@ -1,44 +1,38 @@
 <template>
   <div class="block-area">
-    <div class="tabs">
-      <button 
-        :class="{ active: activeTab === 'blocks' }" 
-        @click="activeTab = 'blocks'"
-      >
-        ブロック
-      </button>
-      <button 
-        :class="{ active: activeTab === 'python' }" 
-        @click="activeTab = 'python'"
-      >
-        Pythonスクリプト
-      </button>
-    </div>
-    
-    <div v-if="activeTab === 'blocks'" class="tab-content">
-      <!-- ブロック関連のコンテンツ -->
-      <p>ここにブロックが表示されます</p>
-    </div>
-    
-    <div v-if="activeTab === 'python'" class="tab-content">
-      <!-- Pythonスクリプト実行コンポーネント -->
-      <PythonExecutor />
+    <div v-for="category in categories" :key="category.name">
+      <h3>{{ category.name }}</h3>
+      <ul>
+        <li v-for="block in category.blocks" :key="block.name">
+          {{ block.name }}
+        </li>
+      </ul>
     </div>
   </div>
 </template>
 
 <script>
-import PythonExecutor from './PythonExecutor.vue'
-
 export default {
   name: 'BlockArea',
-  components: {
-    PythonExecutor
-  },
   data() {
     return {
-      activeTab: 'blocks' // デフォルトでブロックタブを表示
+      categories: []
     }
+  },
+  mounted() {
+    fetch('/blocks.xml')
+      .then(res => res.text())
+      .then(xmlStr => {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(xmlStr, 'application/xml');
+        const categoryNodes = xml.querySelectorAll('category');
+        this.categories = Array.from(categoryNodes).map(cat => ({
+          name: cat.getAttribute('name'),
+          blocks: Array.from(cat.querySelectorAll('block')).map(block => ({
+            name: block.getAttribute('name')
+          }))
+        }));
+      });
   }
 }
 </script>
@@ -53,35 +47,18 @@ export default {
   display: flex;
   flex-direction: column;
 }
-/* .tabs {
-  display: flex;
-  margin-bottom: 15px;
-  border-bottom: 1px solid #ccc;
+h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-size: 1.1em;
+  color: #333;
 }
-
-.tabs button {
-  padding: 8px 16px;
-  background-color: #f0f0f0;
-  border: 1px solid #ccc;
-  border-bottom: none;
-  border-radius: 4px 4px 0 0;
-  margin-right: 5px;
-  cursor: pointer;
-  outline: none;
+ul {
+  margin: 0 0 8px 0;
+  padding-left: 18px;
 }
-
-.tabs button.active {
-  background-color: #fff;
-  border-bottom: 1px solid #fff;
-  margin-bottom: -1px;
-  font-weight: bold;
+li {
+  margin-bottom: 4px;
+  font-size: 1em;
 }
-
-.tab-content {
-  flex: 1;
-  overflow-y: auto;
-  background-color: #fff;
-  border-radius: 0 4px 4px 4px;
-  padding: 15px;
-} */
 </style>

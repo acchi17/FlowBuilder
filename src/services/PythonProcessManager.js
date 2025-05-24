@@ -3,6 +3,22 @@ const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
 
+// プロジェクトルートのconfig.jsonからpythonDirを取得
+let pythonPath = 'python';
+try {
+    const configPath = path.resolve(process.cwd(), 'config.json');
+    if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        if (config.pythonDir) {
+            // OSごとに実行ファイル名を決定
+            const exeName = process.platform === 'win32' ? 'python.exe' : 'python';
+            pythonPath = path.join(config.pythonDir, exeName);
+        }
+    }
+} catch (e) {
+    console.warn('config.jsonの読み込みに失敗しました。デフォルトのpythonを使用します。', e);
+}
+
 /**
  * Pythonプロセスを管理し、WebSocketを通じてスクリプトを実行するクラス
  */
@@ -47,7 +63,7 @@ class PythonProcessManager {
             }
 
             // Pythonプロセスの起動
-            this.pythonProcess = spawn('python', [serverPath, this.scriptDir]);
+            this.pythonProcess = spawn(pythonPath, [serverPath, this.scriptDir]);
             
             // 標準出力のハンドリング
             this.pythonProcess.stdout.on('data', (data) => {
