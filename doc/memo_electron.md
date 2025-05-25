@@ -38,3 +38,38 @@
 | **UI**       | 直接的なUIは持たない (ウィンドウやメニューを作成する)                 | UIそのものを構築・表示する                                           |
 
 `background.js` が家全体（構造、電気、水道など）を管理する建築家だとすれば、`src/main.js` はその家の中の特定の部屋（リビングルームなど）のインテリアデザインや家具の配置を担当するインテリアデザイナーのようなものです。両者が連携して、完全なアプリケーションが機能します。
+
+---
+
+# preload.js の役割と実行タイミング
+
+## 1. preload.jsの役割
+
+preload.jsは、Electronアプリケーションにおいて「レンダラープロセス（Webページ側）」と「メインプロセス（Node.js側）」の間で、安全に機能を橋渡しするためのスクリプトです。
+
+- contextBridge.exposeInMainWorldを使い、window.pythonApiというAPIをWebページ側に公開しています。
+- これにより、Vueなどのフロントエンドから「executeScript」を呼び出すことで、Pythonスクリプトの実行をメインプロセスに依頼できます。
+- executeScriptはipcRenderer.invokeを使い、メインプロセスに「execute-python-script」イベントを送信し、Pythonスクリプトの実行結果をPromiseで返します。
+
+## 2. 実行タイミング
+
+preload.jsは、ElectronのBrowserWindow生成時にpreloadオプションで指定され、Webページ（Vueアプリなど）がロードされる直前に一度だけ実行されます。
+
+- background.jsがpreload.jsを「直接」実行するのではなく、BrowserWindow生成時の設定でElectron本体が自動的に実行します。
+
+```js
+const win = new BrowserWindow({
+  // ...省略...
+  webPreferences: {
+    // ...省略...
+    preload: path.join(__dirname, 'preload.js')
+  }
+})
+```
+
+この指定により、ElectronがBrowserWindow（＝レンダラープロセス）を生成するタイミングで、preload.jsが自動的に実行されます。
+
+## まとめ
+
+- preload.jsは「安全なAPIの橋渡し」と「Webページロード前の一度きりの実行」が主な役割とタイミングです。
+- background.jsはpreload.jsを直接実行するのではなく、BrowserWindow生成時の設定でElectronが実行します。
