@@ -1,0 +1,108 @@
+<root>
+  <category name="Set Conditions">
+    <block name="PowerOn">
+      <command>PowerOn</command>
+    </block>
+    <block name="ChangeMode">
+      <command>ChangeMode</command>
+      <parameter prmType="input" name="Mode" dataType="string" ctrlType="combo" default="2" items="red,green,blue,yellow"/>
+    </block>
+    <block name="MoveStage">
+      <command>MoveStage</command>
+      <parameter prmType="input" name="X[mm]" dataType="float" ctrlType="float_spinner" default="0.0" step="0.1" min="0.0" max="250.0"/>
+      <parameter prmType="input" name="Y[mm]" dataType="float" ctrlType="float_spinner" default="0.0" step="0.1" min="0.0" max="200.0"/>
+    </block>
+    <block name="SearchTemplate">
+      <command>SearchTemplate</command>
+      <parameter prmType="input" name="SearchMode" dataType="integer" ctrlType="radio" default="0" items="coarse, fine, superfine"/>
+      <parameter prmType="input" name="TemplatePath" dataType="string" ctrlType="filePath" default=""/>
+      <parameter prmType="output" name="X[px]" dataType="float"/>
+      <parameter prmType="output" name="Y[px]" dataType="float"/>
+    </block>
+    <!-- <block name="GetImage">
+      <parameter prmType="input" name="Save" dataType=>
+    </block> -->
+  </category>
+  <category name="math">
+    <block name="add">
+      <command>sample_calculator</command>
+      <parameter
+        prmType="input"
+        name="a"
+        dataType="float"
+        ctrlType="float_spinner"
+        default="0"
+        min="0"
+        max="100"
+        step="0.1"
+      />
+      <parameter
+        prmType="input"
+        name="b"
+        dataType="float"
+        ctrlType="float_spinner"
+        default="0"
+        min="0"
+        max="100"
+        step="0.1"
+      />
+      <parameter
+        prmType="output"
+        name="result"
+        dataType="float"
+        ctrlType="float_spinner"
+        default="0"
+      />
+    </block>
+  </category>
+
+  <category name="string">
+    <block name="concat">
+      <command>text_processor</command>
+      <parameter
+        prmType="input"
+        name="str1"
+        dataType="string"
+        ctrlType="text"
+        default=""
+        maxLength="100"
+      />
+      <parameter
+        prmType="input"
+        name="str2"
+        dataType="string"
+        ctrlType="text"
+        default=""
+        maxLength="100"
+      />
+      <parameter
+        prmType="output"
+        name="result"
+        dataType="string"
+        ctrlType="text"
+        default=""
+      />
+    </block>
+  </category>
+
+  <category name="color">
+    <block name="select_color">
+      <command>color_picker</command>
+      <parameter
+        prmType="input"
+        name="color"
+        dataType="string"
+        ctrlType="combo"
+        default="red"
+        choices="red,green,blue,yellow"
+      />
+      <parameter
+        prmType="output"
+        name="result"
+        dataType="string"
+        ctrlType="text"
+        default=""
+      />
+    </block>
+  </category>
+</root>
