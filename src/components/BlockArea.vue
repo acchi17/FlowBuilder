@@ -6,7 +6,10 @@
       </h3>
       <transition name="slide">
         <ul v-show="category.isExpanded">
-          <li v-for="block in category.blocks" :key="block.name">
+          <li v-for="block in category.blocks" 
+              :key="block.name"
+              draggable="true"
+              @dragstart="onDragStart($event, block, category)">
             {{ block.name }}
           </li>
         </ul>
@@ -26,6 +29,16 @@ export default {
   methods: {
     toggleCategory(category) {
       category.isExpanded = !category.isExpanded;
+    },
+    onDragStart(event, block, category) {
+      // ドラッグするブロックの情報をDataTransferオブジェクトに設定
+      const blockData = {
+        name: block.name,
+        category: category.name,
+        parameters: block.parameters,
+        command: block.command
+      };
+      event.dataTransfer.setData('application/json', JSON.stringify(blockData));
     }
   },
   mounted() {
@@ -38,9 +51,27 @@ export default {
         this.categories = Array.from(categoryNodes).map(cat => ({
           name: cat.getAttribute('name'),
           isExpanded: false,
-          blocks: Array.from(cat.querySelectorAll('block')).map(block => ({
-            name: block.getAttribute('name')
-          }))
+          blocks: Array.from(cat.querySelectorAll('block')).map(block => {
+            // コマンド情報を取得
+            const commandNode = block.querySelector('command');
+            const command = commandNode ? commandNode.textContent : '';
+            
+            // パラメータ情報を取得
+            const parameterNodes = block.querySelectorAll('parameter');
+            const parameters = Array.from(parameterNodes).map(param => {
+              const attributes = {};
+              Array.from(param.attributes).forEach(attr => {
+                attributes[attr.name] = attr.value;
+              });
+              return attributes;
+            });
+            
+            return {
+              name: block.getAttribute('name'),
+              command: command,
+              parameters: parameters
+            };
+          })
         }));
       });
   }
@@ -75,6 +106,15 @@ li {
   margin-bottom: 2px;
   font-size: 12px;
   list-style-type: '- ';  /* ハイフンとスペースを指定 */
+  cursor: grab;
+}
+
+li:hover {
+  background-color: #f0f0f0;
+}
+
+li:active {
+  cursor: grabbing;
 }
 .slide-enter-active,
 .slide-leave-active {
