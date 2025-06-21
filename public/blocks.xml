@@ -5,7 +5,7 @@
     </block>
     <block name="ChangeMode">
       <command>ChangeMode</command>
-      <parameter prmType="input" name="Mode" dataType="string" ctrlType="combo" default="2" items="red,green,blue,yellow"/>
+      <parameter prmType="input" name="Mode" dataType="string" ctrlType="combo" default="Normal" items="Normal,Custom"/>
     </block>
     <block name="MoveStage">
       <command>MoveStage</command>
@@ -24,38 +24,14 @@
     </block> -->
   </category>
   <category name="math">
-    <block name="add">
-      <command>sample_calculator</command>
-      <parameter
-        prmType="input"
-        name="a"
-        dataType="float"
-        ctrlType="float_spinner"
-        default="0"
-        min="0"
-        max="100"
-        step="0.1"
-      />
-      <parameter
-        prmType="input"
-        name="b"
-        dataType="float"
-        ctrlType="float_spinner"
-        default="0"
-        min="0"
-        max="100"
-        step="0.1"
-      />
-      <parameter
-        prmType="output"
-        name="result"
-        dataType="float"
-        ctrlType="float_spinner"
-        default="0"
-      />
+    <block name="BasicCalc">
+      <command>BasicCalc</command>
+      <parameter prmType="input" name="operation" dataType="string" ctrlType="combo" default="add" items="add,sub,mul,div"/>
+      <parameter prmType="input" name="a" dataType="float" ctrlType="float_spinner" default="5" min="0" max="100" step="0.1"/>
+      <parameter prmType="input" name="b" dataType="float" ctrlType="float_spinner" default="0" min="0" max="100" step="0.1"/>
+      <parameter prmType="output" name="Decimal" dataType="float" ctrlType="float_spinner" default="0"/>
     </block>
   </category>
-
   <category name="string">
     <block name="concat">
       <command>text_processor</command>
@@ -94,7 +70,7 @@
         dataType="string"
         ctrlType="combo"
         default="red"
-        choices="red,green,blue,yellow"
+        items="red,green,blue,yellow"
       />
       <parameter
         prmType="output"

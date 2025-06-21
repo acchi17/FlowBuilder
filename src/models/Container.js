@@ -1,9 +1,7 @@
 import Entry from './Entry';
-import { ExecutionStatus } from './ExecutionStatus';
 
 /**
- * 子要素を順次実行するコンテナクラス
- * Entryクラスを継承し、executeInternalメソッドを実装
+ * 子要素を順次実行クラス
  */
 export default class Container extends Entry {
     /**
@@ -13,6 +11,101 @@ export default class Container extends Entry {
      */
     constructor(id, originalName, description) {
         super(id, originalName, description);
+        
+        // 子要素の管理
+        this.children = new Map();
+        
+        // 実行順序の管理
+        this.executionOrder = [];
+    }
+    
+    /**
+     * 子要素を追加
+     * @param {Entry} child - 追加する子要素
+     * @throws {Error} 同じIDの子要素が既に存在する場合
+     */
+    addChild(child) {
+        if (this.children.has(child.id)) {
+            throw new Error(`子要素 ${child.id} は既に存在します`);
+        }
+        this.children.set(child.id, child);
+    }
+
+    /**
+     * 子要素を削除
+     * @param {string} id - 削除する子要素のID
+     * @returns {boolean} 削除が成功したかどうか
+     */
+    removeChild(id) {
+        return this.children.delete(id);
+    }
+
+    /**
+     * 子要素を取得
+     * @param {string} id - 取得する子要素のID
+     * @returns {Entry|undefined} 子要素
+     */
+    getChild(id) {
+        return this.children.get(id);
+    }
+
+    /**
+     * すべての子要素を取得
+     * @returns {Entry[]} 子要素の配列
+     */
+    getAllChildren() {
+        return Array.from(this.children.values());
+    }
+
+    /**
+     * 実行順序を設定
+     * @param {string[]} order - 子要素IDの配列
+     * @throws {Error} 存在しない子要素IDが含まれる場合
+     */
+    setExecutionOrder(order) {
+        // 存在しない子要素IDがないかチェック
+        for (const id of order) {
+            if (!this.children.has(id)) {
+                throw new Error(`実行順序に存在しない子要素ID ${id} が含まれています`);
+            }
+        }
+        this.executionOrder = [...order];
+    }
+
+    /**
+     * 実行順序を取得
+     * @returns {string[]} 子要素IDの配列
+     */
+    getExecutionOrder() {
+        return [...this.executionOrder];
+    }
+
+    /**
+     * 実行順序の検証
+     * @throws {Error} 検証エラーが発生した場合
+     */
+    validateExecutionOrder() {
+        // 子要素がない場合は検証不要
+        if (this.children.size === 0) {
+            return;
+        }
+
+        // すべての子要素が実行順序に含まれているかチェック
+        for (const childId of this.children.keys()) {
+            if (!this.executionOrder.includes(childId)) {
+                throw new Error(`子要素 ${childId} が実行順序に含まれていません`);
+            }
+        }
+
+        // 実行順序に存在しない子要素がないかチェック
+        for (const id of this.executionOrder) {
+            if (!this.children.has(id)) {
+                throw new Error(`実行順序に存在しない子要素ID ${id} が含まれています`);
+            }
+        }
+
+        // 依存関係のチェック（簡易版）
+        // 実際の実装では、パラメータ接続に基づいてトポロジカルソートを行う必要があります
     }
 
     /**
@@ -23,6 +116,9 @@ export default class Container extends Entry {
     validateExecutability() {
         // 親クラスの検証
         super.validateExecutability();
+        
+        // 実行順序の検証
+        this.validateExecutionOrder();
         
         // コンテナ固有の検証
         this.validateContainerSpecific();
@@ -62,7 +158,7 @@ export default class Container extends Entry {
         const connections = this.connectionManager.getAllConnections();
         
         for (const connection of connections) {
-            const { sourceEntryId, sourceParameterId, targetEntryId, targetParameterId } = connection;
+            const { sourceEntryId, sourceParameterName, targetEntryId, targetParameterName } = connection;
             
             // 接続元と接続先の子要素を取得
             const sourceEntry = this.children.get(sourceEntryId);
@@ -70,11 +166,11 @@ export default class Container extends Entry {
             
             if (sourceEntry && targetEntry) {
                 // 接続元の出力パラメータの値を取得
-                const value = sourceEntry.getParameterValue(sourceParameterId, 'outputs');
+                const value = sourceEntry.getParameterValue(sourceParameterName, 'outputs');
                 
                 // 接続先の入力パラメータに値を設定
                 if (value !== null && value !== undefined) {
-                    targetEntry.setParameterValue(targetParameterId, value, 'inputs');
+                    targetEntry.setParameterValue(targetParameterName, value, 'inputs');
                 }
             }
         }
@@ -82,11 +178,12 @@ export default class Container extends Entry {
 
     /**
      * 実際の実行処理
-     * @returns {Promise<void>}
+     * @param {Object} inputParams - 入力パラメータの値を含むオブジェクト {paramName: value, ...}
+     * @returns {Promise<Object>} 出力パラメータの値を含むオブジェクト {paramName: value, ...}
      * @throws {Error} 実行エラーが発生した場合
      * @override
      */
-    async executeInternal() {
+    async executeInternal(inputParams) {
         try {
             // 実行順序に従って子要素を順次実行
             for (const childId of this.executionOrder) {
@@ -97,10 +194,10 @@ export default class Container extends Entry {
                 }
                 
                 // 子要素の入力パラメータに値を設定（コンテナの入力から）
-                this.parameters.inputs.forEach((param, paramId) => {
-                    const childParam = child.parameters.inputs.get(paramId);
+                this.parameters.inputs.forEach((param, paramName) => {
+                    const childParam = child.parameters.inputs.get(paramName);
                     if (childParam && param.value !== null && param.value !== undefined) {
-                        child.setParameterValue(paramId, param.value, 'inputs');
+                        child.setParameterValue(paramName, param.value, 'inputs');
                     }
                 });
                 
@@ -108,7 +205,7 @@ export default class Container extends Entry {
                 this._propagateParameterValues();
                 
                 // 子要素を実行
-                await child.execute({});
+                await child.execute();
                 
                 // 子要素の実行状態をチェック
                 if (child.getStatus() === ExecutionStatus.ERROR) {
@@ -116,10 +213,10 @@ export default class Container extends Entry {
                 }
                 
                 // 子要素の出力パラメータの値をコンテナの出力パラメータに設定
-                child.parameters.outputs.forEach((param, paramId) => {
-                    const containerParam = this.parameters.outputs.get(paramId);
+                child.parameters.outputs.forEach((param, paramName) => {
+                    const containerParam = this.parameters.outputs.get(paramName);
                     if (containerParam && param.value !== null && param.value !== undefined) {
-                        this.setParameterValue(paramId, param.value, 'outputs');
+                        this.setParameterValue(paramName, param.value, 'outputs');
                     }
                 });
             }

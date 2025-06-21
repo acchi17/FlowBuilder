@@ -74,10 +74,14 @@ function setupIPC() {
       
       // パラメータを含むスクリプト実行
       const result = await PythonService.executeScript(scriptName, params);
-      return { success: true, result };
+      return result;  // 結果をそのまま返す
     } catch (error) {
       console.error(`Error executing Python script: ${error}`);
-      return { success: false, error: error.message };
+      // エラーの場合はResultキーを含む辞書を返す
+      return { 
+        Result: false, 
+        error: error.message 
+      };
     }
   })
 }

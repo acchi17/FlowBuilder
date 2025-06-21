@@ -245,3 +245,272 @@ class PythonProcessManager {
 1. スクリプト実行の並列処理対応
 2. キャッシュ機能の追加による実行速度の向上
 3. モニタリング機能の追加
+
+## 6. パラメータと結果の受け渡し仕様
+
+### パラメータの受け渡し
+
+#### 基本方針
+- JavaScriptからPythonへのパラメータは辞書型データ（JSONオブジェクト）として渡す
+- パラメータ辞書には「パラメータ名:値」の組を可変個保持できる
+
+#### JavaScript側の実装
+```javascript
+// PythonProcessManager.js
+async executeScript(scriptPath, params = {}) {
+    return new Promise((resolve, reject) => {
+        // スクリプトパスとパラメータを送信
+        this.ws.send(JSON.stringify({
+            script_path: scriptPath,
+            params: params  // パラメータ辞書
+        }));
+
+        // 結果を受信
+        this.ws.once('message', (data) => {
+            const result = JSON.parse(data);
+            if (result.status === 'success') {
+                resolve(result.result);
+            } else {
+                reject(new Error(result.message));
+            }
+        });
+    });
+}
+
+// Block.js
+async executeInternal() {
+    try {
+        // 入力パラメータの収集
+        const inputParams = {};
+        this.parameters.inputs.forEach((param, paramId) => {
+            inputParams[paramId] = param.value;
+        });
+        
+        // スクリプトの実行（パラメータ辞書を渡す）
+        const response = await window.pythonApi.executeScript(
+            this.scriptPath,
+            inputParams
+        );
+        
+        // レスポンスの処理
+        if (response.Result) {
+            // 出力パラメータの設定
+            if (response && typeof response === 'object') {
+                Object.entries(response).forEach(([paramId, value]) => {
+                    this.setParameterValue(paramId, value, 'outputs');
+                });
+            }
+        } else {
+            throw new Error(response.error || '不明なエラーが発生しました');
+        }
+    } catch (error) {
+        throw new Error(`Pythonスクリプト実行エラー: ${error.message}`);
+    }
+}
+```
+
+#### Python側の実装
+```python
+# python_server.py
+def load_and_execute(self, script_path, params=None):
+    """
+    スクリプトをロードして実行
+    @param script_path: 実行するスクリプトパス
+    @param params: スクリプトに渡すパラメータ辞書
+    @return: 実行結果
+    """
+    # パスのバリデーション
+    is_valid, error_message = self.validate_script_path(script_path)
+    if not is_valid:
+        return {
+            "status": "error",
+            "message": error_message
+        }
+
+    try:
+        # スクリプトファイルのパスからモジュールを動的にロード
+        spec = importlib.util.spec_from_file_location("dynamic_module", script_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        
+        # execute()メソッドを実行（パラメータ辞書付き）
+        if hasattr(module, 'execute'):
+            # パラメータがある場合は辞書として渡す
+            if params:
+                result = module.execute(params)
+            else:
+                result = module.execute({})  # 空の辞書を渡す
+            return {
+                "status": "success",
+                "result": result
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "execute() method not found"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+# WebSocketハンドラの修正
+async def handle_request(self, websocket):
+    """
+    WebSocketリクエストのハンドラ
+    @param websocket: WebSocketコネクション
+    """
+    async for message in websocket:
+        try:
+            # メッセージのパース
+            data = json.loads(message)
+            script_path = data.get("script_path")
+            params = data.get("params", {})  # パラメータ辞書を取得
+            
+            if not script_path:
+                await websocket.send(json.dumps({
+                    "status": "error",
+                    "message": "script_path is required"
+                }))
+                continue
+            
+            # スクリプトを実行（パラメータ辞書付き）
+            result = self.executor.load_and_execute(script_path, params)
+            
+            # 結果を返送
+            await websocket.send(json.dumps(result))
+        
+        except json.JSONDecodeError:
+            await websocket.send(json.dumps({
+                "status": "error",
+                "message": "Invalid JSON format"
+            }))
+        except Exception as e:
+            await websocket.send(json.dumps({
+                "status": "error",
+                "message": f"Unexpected error: {str(e)}"
+            }))
+```
+
+### Pythonスクリプトの実装例
+```python
+# BasicCalc.py
+def add(a, b):
+    return a + b
+
+def subtract(a, b):
+    return a - b
+
+def multiply(a, b):
+    return a * b
+
+def divide(a, b):
+    if b == 0:
+        raise ValueError("Division by zero is not allowed")
+    return a / b
+
+def execute(params):
+    """
+    指定された演算を実行する
+    
+    @param params: パラメータを含む辞書
+    @return: 演算結果を含む辞書
+    """
+    # 辞書からパラメータを取得（デフォルト値付き）
+    operation = params.get("operation", "add")
+    a = params.get("a", 1)
+    b = params.get("b", 2)
+    
+    operations = {
+        "add": add,
+        "sub": subtract,
+        "mul": multiply,
+        "div": divide
+    }
+    
+    if operation not in operations:
+        return {
+            "Result": False,  # 成功/失敗を示すResultキー
+            "error": f"Unknown operation: {operation}",
+            "available_operations": list(operations.keys())
+        }
+    
+    try:
+        result = operations[operation](a, b)
+        return {
+            "Result": True,  # 成功/失敗を示すResultキー
+            "operation": operation,
+            "a": a,
+            "b": b,
+            "result": result
+        }
+    except Exception as e:
+        return {
+            "Result": False,  # 成功/失敗を示すResultキー
+            "operation": operation,
+            "error": str(e)
+        }
+```
+
+### 結果の受け渡し
+
+#### 基本方針
+- Pythonスクリプトからの出力は辞書型データとして返す
+- 出力辞書には必ず`Result`キーを含め、スクリプトの成功/失敗を示す値を設定する
+  - `Result: True` - スクリプトが正常に実行された場合
+  - `Result: False` - エラーが発生した場合
+
+#### 出力辞書の標準フォーマット
+```python
+# 成功時の出力例
+{
+    "Result": True,
+    "operation": "add",
+    "a": 5,
+    "b": 3,
+    "result": 8
+}
+
+# エラー時の出力例
+{
+    "Result": False,
+    "operation": "div",
+    "error": "Division by zero is not allowed"
+}
+```
+
+#### 注意事項
+1. すべてのPythonスクリプトは`execute`関数を実装し、辞書型のパラメータを受け取るようにする
+2. すべての出力辞書には`Result`キーを含める
+3. エラーが発生した場合は`Result: False`と`error`メッセージを含める
+4. 成功した場合は`Result: True`と処理結果を含める
+
+## 7. 移行ガイドライン
+
+### 既存スクリプトの修正手順
+
+1. `execute`関数のシグネチャを変更
+   - 個別のパラメータではなく、辞書型の`params`を受け取るように変更
+   - 例: `def execute(operation="add", a=1, b=2)` → `def execute(params)`
+
+2. パラメータの取得方法を変更
+   - 辞書から`get`メソッドを使ってパラメータを取得
+   - デフォルト値を設定して、パラメータが省略された場合の動作を定義
+   - 例: `operation = params.get("operation", "add")`
+
+3. 出力辞書に`Result`キーを追加
+   - 成功時は`"Result": True`
+   - エラー時は`"Result": False`
+
+4. 既存の`success`キーがある場合は、`Result`キーに置き換えるか、両方を維持
+
+### JavaScript側の対応
+
+1. `Block.js`の`executeInternal`メソッドを修正
+   - パラメータを辞書型データとして整形
+   - 出力の`Result`キーを確認して処理を分岐
+
+2. エラーハンドリングの修正
+   - `response.success`ではなく`response.Result`を確認
+   - エラーメッセージの取得方法を適宜修正

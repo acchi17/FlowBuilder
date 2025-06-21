@@ -1,39 +1,29 @@
 import Parameter from './Parameter';
-import { InputControlType } from './InputControlType';
+// import { InputControlType } from './InputControlType';
 import { ExecutionStatus } from './ExecutionStatus';
 import ParameterConnectionManager from './ParameterConnection';
 
 /**
- * エントリの基本クラス
- * ブロックとコンテナの基底クラスとして機能する
+ * 実行単位の基底クラス
  */
 export default class Entry {
     /**
      * @param {string} id - エントリの一意のID
      * @param {string} originalName - オリジナルの名称（変更不可）
      * @param {string} description - 説明
+     * @param {Array} [parameters] - パラメータ定義の配列
      */
-    constructor(id, originalName, description) {
+    constructor(id, originalName, description, parameters = null) {
         this.id = id;
         this.originalName = originalName;
         this.customName = null;
         this.description = description;
         
-        // パラメータ管理
-        this.parameters = {
-            inputs: new Map(),
-            outputs: new Map()
-        };
-        
-        // 子要素の管理
-        this.children = new Map();
-        
-        // 実行順序の管理
-        this.executionOrder = [];
+        // パラメータ管理（loadParameterDefinitionで初期化と設定を行う）
+        this.parameters = this.loadParameterDefinition(parameters);
         
         // 実行状態の管理
         this.status = ExecutionStatus.READY;
-        
         // パラメータ接続の管理
         this.connectionManager = new ParameterConnectionManager();
     }
@@ -56,35 +46,40 @@ export default class Entry {
 
     /**
      * パラメータ定義を取り込む
-     * @param {Object} definition - XMLから変換されたパラメータ定義オブジェクト
+     * @param {Array|null} parameters - パラメータ定義の配列
+     * @returns {Object} 入力と出力に分類されたパラメータマップ
      */
-    loadParameterDefinition(definition) {
-        // 入力パラメータの設定
-        if (definition.inputs && Array.isArray(definition.inputs)) {
-            definition.inputs.forEach(paramDef => {
+    loadParameterDefinition(parameters) {
+        const result = {
+            inputs: new Map(),
+            outputs: new Map()
+        };
+        
+        // parametersが配列で、要素が存在する場合のみ処理
+        if (Array.isArray(parameters) && parameters.length > 0) {
+            // パラメータをprmTypeに基づいて入力と出力に分類
+            parameters.forEach(paramDef => {
                 const param = new Parameter(paramDef);
-                this.parameters.inputs.set(param.id, param);
+                if (paramDef.prmType === 'input') {
+                    result.inputs.set(param.name, param);
+                } else if (paramDef.prmType === 'output') {
+                    result.outputs.set(param.name, param);
+                }
             });
         }
-
-        // 出力パラメータの設定
-        if (definition.outputs && Array.isArray(definition.outputs)) {
-            definition.outputs.forEach(paramDef => {
-                const param = new Parameter(paramDef);
-                this.parameters.outputs.set(param.id, param);
-            });
-        }
+        
+        return result;
     }
 
     /**
      * パラメータの値を設定
-     * @param {string} paramId - パラメータID
+     * @param {string} paramName - パラメータ名
      * @param {*} value - 設定する値
      * @param {'inputs' | 'outputs'} type - パラメータタイプ
      * @returns {boolean} 設定が成功したかどうか
      */
-    setParameterValue(paramId, value, type = 'inputs') {
-        const param = this.parameters[type].get(paramId);
+    setParameterValue(paramName, value, type = 'inputs') {
+        const param = this.parameters[type].get(paramName);
         if (param) {
             return param.setValue(value);
         }
@@ -93,23 +88,23 @@ export default class Entry {
 
     /**
      * パラメータの値を取得
-     * @param {string} paramId - パラメータID
+     * @param {string} paramName - パラメータ名
      * @param {'inputs' | 'outputs'} type - パラメータタイプ
      * @returns {*} パラメータの値
      */
-    getParameterValue(paramId, type = 'inputs') {
-        const param = this.parameters[type].get(paramId);
+    getParameterValue(paramName, type = 'inputs') {
+        const param = this.parameters[type].get(paramName);
         return param ? param.value : null;
     }
 
     /**
      * 特定のパラメータの情報を取得（GUI表示用）
-     * @param {string} paramId - パラメータID
+     * @param {string} paramName - パラメータ名
      * @param {'inputs' | 'outputs'} type - パラメータタイプ
      * @returns {Object|null} パラメータ情報
      */
-    getParameterInfo(paramId, type = 'inputs') {
-        const param = this.parameters[type].get(paramId);
+    getParameterInfo(paramName, type = 'inputs') {
+        const param = this.parameters[type].get(paramName);
         return param ? param.getDisplayInfo() : null;
     }
 
@@ -139,13 +134,13 @@ export default class Entry {
 
     /**
      * パラメータの値を更新（GUI操作用）
-     * @param {string} paramId - パラメータID
+     * @param {string} paramName - パラメータ名
      * @param {*} value - 新しい値
      * @param {'inputs' | 'outputs'} type - パラメータタイプ
      * @returns {boolean} 更新が成功したかどうか
      */
-    updateParameterValue(paramId, value, type = 'inputs') {
-        const param = this.parameters[type].get(paramId);
+    updateParameterValue(paramName, value, type = 'inputs') {
+        const param = this.parameters[type].get(paramName);
         return param ? param.setValue(value) : false;
     }
 
@@ -164,73 +159,12 @@ export default class Entry {
     validateParameters() {
         this.parameters.inputs.forEach(param => {
             if (param.required && (param.value === null || param.value === undefined)) {
-                throw new Error(`必須パラメータ ${param.name} (${param.id}) が設定されていません`);
+                throw new Error(`必須パラメータ ${param.name} が設定されていません`);
             }
             if (!param.validateValue(param.value)) {
-                throw new Error(`パラメータ ${param.name} (${param.id}) の値が無効です`);
+                throw new Error(`パラメータ ${param.name} の値が無効です`);
             }
         });
-    }
-
-    /**
-     * 子要素を追加
-     * @param {Entry} child - 追加する子要素
-     * @throws {Error} 同じIDの子要素が既に存在する場合
-     */
-    addChild(child) {
-        if (this.children.has(child.id)) {
-            throw new Error(`子要素 ${child.id} は既に存在します`);
-        }
-        this.children.set(child.id, child);
-    }
-
-    /**
-     * 子要素を削除
-     * @param {string} id - 削除する子要素のID
-     * @returns {boolean} 削除が成功したかどうか
-     */
-    removeChild(id) {
-        return this.children.delete(id);
-    }
-
-    /**
-     * 子要素を取得
-     * @param {string} id - 取得する子要素のID
-     * @returns {Entry|undefined} 子要素
-     */
-    getChild(id) {
-        return this.children.get(id);
-    }
-
-    /**
-     * すべての子要素を取得
-     * @returns {Entry[]} 子要素の配列
-     */
-    getAllChildren() {
-        return Array.from(this.children.values());
-    }
-
-    /**
-     * 実行順序を設定
-     * @param {string[]} order - 子要素IDの配列
-     * @throws {Error} 存在しない子要素IDが含まれる場合
-     */
-    setExecutionOrder(order) {
-        // 存在しない子要素IDがないかチェック
-        for (const id of order) {
-            if (!this.children.has(id)) {
-                throw new Error(`実行順序に存在しない子要素ID ${id} が含まれています`);
-            }
-        }
-        this.executionOrder = [...order];
-    }
-
-    /**
-     * 実行順序を取得
-     * @returns {string[]} 子要素IDの配列
-     */
-    getExecutionOrder() {
-        return [...this.executionOrder];
     }
 
     /**
@@ -245,9 +179,9 @@ export default class Entry {
      * パラメータを接続
      * @param {Object} connection - パラメータ接続
      * @param {string} connection.sourceEntryId - 接続元のEntry ID
-     * @param {string} connection.sourceParameterId - 接続元のパラメータID
+     * @param {string} connection.sourceParameterName - 接続元のパラメータ名
      * @param {string} connection.targetEntryId - 接続先のEntry ID
-     * @param {string} connection.targetParameterId - 接続先のパラメータID
+     * @param {string} connection.targetParameterName - 接続先のパラメータ名
      */
     connectParameter(connection) {
         this.connectionManager.connect(connection);
@@ -286,54 +220,27 @@ export default class Entry {
         const connections = this.connectionManager.getAllConnections();
         for (const connection of connections) {
             if (!this.connectionManager.validateConnectionTypes(connection)) {
-                throw new Error(`パラメータ接続の型が一致しません: ${connection.sourceEntryId}:${connection.sourceParameterId} -> ${connection.targetEntryId}:${connection.targetParameterId}`);
+                throw new Error(`パラメータ接続の型が一致しません: ${connection.sourceEntryId}:${connection.sourceParameterName} -> ${connection.targetEntryId}:${connection.targetParameterName}`);
             }
         }
 
         // 未接続の必須パラメータのチェック
-        this.parameters.inputs.forEach((param, paramId) => {
+        this.parameters.inputs.forEach((param, paramName) => {
             if (param.required) {
                 const hasConnection = connections.some(conn => 
-                    conn.targetEntryId === this.id && conn.targetParameterId === paramId);
+                    conn.targetEntryId === this.id && conn.targetParameterName === paramName);
                 
                 if (!hasConnection && param.value === null) {
-                    throw new Error(`必須パラメータ ${param.name} (${paramId}) が接続されていません`);
+                    throw new Error(`必須パラメータ ${param.name} が接続されていません`);
                 }
             }
         });
     }
 
     /**
-     * 実行順序の検証
-     * @throws {Error} 検証エラーが発生した場合
-     */
-    validateExecutionOrder() {
-        // 子要素がない場合は検証不要
-        if (this.children.size === 0) {
-            return;
-        }
-
-        // すべての子要素が実行順序に含まれているかチェック
-        for (const childId of this.children.keys()) {
-            if (!this.executionOrder.includes(childId)) {
-                throw new Error(`子要素 ${childId} が実行順序に含まれていません`);
-            }
-        }
-
-        // 実行順序に存在しない子要素がないかチェック
-        for (const id of this.executionOrder) {
-            if (!this.children.has(id)) {
-                throw new Error(`実行順序に存在しない子要素ID ${id} が含まれています`);
-            }
-        }
-
-        // 依存関係のチェック（簡易版）
-        // 実際の実装では、パラメータ接続に基づいてトポロジカルソートを行う必要があります
-    }
-
-    /**
      * 実行可能性の検証
      * @throws {Error} 検証エラーが発生した場合
+     * @override
      */
     validateExecutability() {
         // パラメータ値の検証
@@ -341,11 +248,6 @@ export default class Entry {
         
         // パラメータ接続の検証
         this.validateConnections();
-        
-        // 子要素がある場合は実行順序の検証
-        if (this.children.size > 0) {
-            this.validateExecutionOrder();
-        }
     }
 
     /**
@@ -376,37 +278,50 @@ export default class Entry {
 
     /**
      * 実行メソッド
-     * @param {Object} inputValues - 入力値のオブジェクト {paramId: value, ...}
-     * @returns {Promise<Object>} 出力値のオブジェクト {paramId: value, ...}
      */
-    async execute(inputValues) {
+    async execute() {
         try {
-            // 実行開始
+            // 実行開始ステータス設定
             this.onExecutionStart();
-            
-            // 入力値の設定
-            Object.entries(inputValues).forEach(([paramId, value]) => {
-                this.setParameterValue(paramId, value, 'inputs');
-            });
 
             // 実行前の検証
             this.validateExecutability();
 
-            // 実行処理（サブクラスでオーバーライド）
-            await this.executeInternal();
-
-            // 出力値の収集
-            const outputs = {};
-            this.parameters.outputs.forEach((param, paramId) => {
-                outputs[paramId] = param.value;
+            // 入力パラメータの取得
+            const inputParams = {};
+            this.parameters.inputs.forEach((param, paramName) => {
+                inputParams[paramName] = param.value;
             });
 
-            // 実行完了
-            this.onExecutionComplete();
+            // 実行処理
+            const outputValues = await this.executeInternal(inputParams);
             
-            return outputs;
+            // 出力パラメータの更新
+            if (outputValues && typeof outputValues === 'object') {
+                // resultプロパティがある場合はエラーチェック
+                if ('result' in outputValues && !outputValues.result) {
+                    throw new Error(outputValues.error || '不明なエラーが発生しました');
+                }
+
+                Object.entries(outputValues).forEach(([paramName, value]) => {
+                    //const param = this.parameters['outputs'].get(paramName);
+                    const param = this.parameters.outputs.get(paramName);
+                    if (param) {
+                        param.setValue(value);
+                    }
+                });
+            }
+
+            // 実行完了ステータス設定
+            this.onExecutionComplete();
+
+            // 出力値の収集
+            // const outputs = {};
+            // this.parameters.outputs.forEach((param, paramName) => {
+            //     outputs[paramName] = param.value;
+            // });
+            // return outputs;
         } catch (error) {
-            // エラー処理
             this.onExecutionError(error);
             throw error;
         }
@@ -414,10 +329,13 @@ export default class Entry {
 
     /**
      * 実際の実行処理（サブクラスで実装）
-     * @returns {Promise<void>}
-     * @throws {Error} 実装されていない場合
+     * @param {Object} inputParams - 入力パラメータの値を含むオブジェクト {paramName: value, ...}
+     * @returns {Promise<Object>} 出力パラメータの値を含むオブジェクト {paramName: value, ...}
+     * @throws {Error} 
+     * @override
      */
-    async executeInternal() {
+    async executeInternal(inputParams) {
+        void inputParams;
         throw new Error('executeInternal must be implemented in subclass');
     }
 }

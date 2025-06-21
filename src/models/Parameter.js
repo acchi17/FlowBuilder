@@ -9,30 +9,55 @@ export default class Parameter {
     /**
      * パラメータを初期化
      * @param {Object} definition - パラメータの定義
-     * @param {string} definition.id - パラメータの一意のID
      * @param {string} definition.name - パラメータ名
      * @param {string} definition.type - データ型
      * @param {boolean} [definition.required=false] - 必須かどうか
      * @param {string} [definition.description=''] - 説明
-     * @param {*} [definition.default=null] - デフォルト値
+     * @param {*} [definition.value=null] - 初期値
      * @param {string} [definition.inputControl] - 入力コントロールの種類
      * @param {Object} [definition.constraints={}] - 制約条件
      */
     constructor(definition) {
         // 基本情報
-        this.id = definition.id;
         this.name = definition.name;
         this.type = definition.type;
         this.required = definition.required || false;
         this.description = definition.description || '';
 
         // 値の管理
-        this.value = definition.default;
-        this.initialValue = definition.default;
+        this.value = this.convertValueType(definition.value, this.type);
+        this.initialValue = this.value;
 
         // GUI表示用の設定
-        this.inputControl = this.determineInputControl(definition);
+        this.inputControl = definition.inputControl || this.determineInputControl(definition);
+        
+        // 制約条件の設定
         this.constraints = new ParameterConstraints(definition.constraints || {});
+    }
+
+    /**
+     * 値を適切な型に変換する
+     * @param {string|any} value - 変換する値
+     * @param {string} type - データ型
+     * @returns {any} 変換された値
+     * @private
+     */
+    convertValueType(value, type) {
+        if (value === undefined || value === null) {
+            return null;
+        }
+
+        switch (type) {
+            case 'integer':
+                return parseInt(value, 10);
+            case 'float':
+            case 'double':
+                return parseFloat(value);
+            case 'boolean':
+                return value === 'true' || value === true;
+            default:
+                return value;
+        }
     }
 
     /**
@@ -42,11 +67,6 @@ export default class Parameter {
      * @private
      */
     determineInputControl(definition) {
-        // 明示的に指定されている場合はそれを使用
-        if (definition.inputControl) {
-            return definition.inputControl;
-        }
-
         // 型に基づいてデフォルトのコントロールを決定
         switch (definition.type) {
             case 'string':
@@ -137,7 +157,6 @@ export default class Parameter {
      */
     getDisplayInfo() {
         return {
-            id: this.id,
             name: this.name,
             type: this.type,
             value: this.value,

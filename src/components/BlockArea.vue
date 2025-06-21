@@ -9,7 +9,7 @@
           <li v-for="block in category.blocks" 
               :key="block.name"
               draggable="true"
-              @dragstart="onDragStart($event, block, category)">
+              @dragstart="onDragStart($event, block)">
             {{ block.name }}
           </li>
         </ul>
@@ -19,6 +19,8 @@
 </template>
 
 <script>
+import BlockService from '@/services/BlockService';
+
 export default {
   name: 'BlockArea',
   data() {
@@ -30,50 +32,27 @@ export default {
     toggleCategory(category) {
       category.isExpanded = !category.isExpanded;
     },
-    onDragStart(event, block, category) {
+    onDragStart(event, block) {
       // ドラッグするブロックの情報をDataTransferオブジェクトに設定
       const blockData = {
         name: block.name,
-        category: category.name,
-        parameters: block.parameters,
-        command: block.command
+        command: block.command,
+        parameters: block.parameters
       };
       event.dataTransfer.setData('application/json', JSON.stringify(blockData));
+    },
+    /**
+     * ブロックカテゴリー情報を読み込む
+     * @returns {Promise<Array>} カテゴリー情報の配列
+     */
+    async loadBlockCategories() {
+      // サービスからブロックカテゴリー情報を取得して返す
+      return await BlockService.fetchBlockCategories();
     }
   },
-  mounted() {
-    fetch('/blocks.xml')
-      .then(res => res.text())
-      .then(xmlStr => {
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(xmlStr, 'application/xml');
-        const categoryNodes = xml.querySelectorAll('category');
-        this.categories = Array.from(categoryNodes).map(cat => ({
-          name: cat.getAttribute('name'),
-          isExpanded: false,
-          blocks: Array.from(cat.querySelectorAll('block')).map(block => {
-            // コマンド情報を取得
-            const commandNode = block.querySelector('command');
-            const command = commandNode ? commandNode.textContent : '';
-            
-            // パラメータ情報を取得
-            const parameterNodes = block.querySelectorAll('parameter');
-            const parameters = Array.from(parameterNodes).map(param => {
-              const attributes = {};
-              Array.from(param.attributes).forEach(attr => {
-                attributes[attr.name] = attr.value;
-              });
-              return attributes;
-            });
-            
-            return {
-              name: block.getAttribute('name'),
-              command: command,
-              parameters: parameters
-            };
-          })
-        }));
-      });
+  async mounted() {
+    // loadBlockCategories()の戻り値をcategoriesに代入
+    this.categories = await this.loadBlockCategories();
   }
 }
 </script>

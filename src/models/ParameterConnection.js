@@ -101,7 +101,8 @@ export default class ParameterConnectionManager {
      * @param {Function} getParameterTypeFunc - パラメータの型を取得する関数
      * @returns {boolean} 型が互換性を持つ場合はtrue
      */
-    validateConnectionTypes(connection, getParameterTypeFunc) {
+    validateConnectionTypes() {
+        //引数: connection, getParameterTypeFunc
         // 実際の実装では、getParameterTypeFuncを使用してパラメータの型を取得し、
         // 型の互換性をチェックする必要があります。
         // ここでは簡易的な実装としてtrueを返します。

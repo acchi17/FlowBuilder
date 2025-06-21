@@ -60,13 +60,13 @@ class ScriptExecutor:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             
-            # execute()メソッドを実行（パラメータ付き）
+                # execute()メソッドを実行（パラメータ辞書付き）
             if hasattr(module, 'execute'):
-                # パラメータがある場合は渡す
+                # パラメータがある場合は辞書として渡す
                 if params:
-                    result = module.execute(**params)
+                    result = module.execute(params)
                 else:
-                    result = module.execute()
+                    result = module.execute({})  # 空の辞書を渡す
                 return {
                     "status": "success",
                     "result": result

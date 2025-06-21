@@ -1,50 +1,19 @@
 import Entry from './Entry';
-import { ExecutionStatus } from './ExecutionStatus';
 
 /**
- * Pythonスクリプトを実行するブロッククラス
- * Entryクラスを継承し、executeInternalメソッドを実装
+ * スクリプトを実行するクラス
  */
 export default class Block extends Entry {
     /**
-     * @param {string} id - ブロックの一意のID
+     * @param {string} id - エントリの一意のID
      * @param {string} originalName - オリジナルの名称（変更不可）
      * @param {string} description - 説明
-     * @param {string} scriptPath - 実行するPythonスクリプトのパス
-     * @param {Object} pythonService - Pythonスクリプト実行サービス
+     * @param {Array} [parameters] - パラメータ定義の配列
+     * @param {string} scriptPath - 実行するスクリプトのパス
      */
-    constructor(id, originalName, description, scriptPath, pythonService) {
-        super(id, originalName, description);
-        
-        /**
-         * 実行するPythonスクリプトのパス
-         * @type {string}
-         * @private
-         */
+    constructor(id, originalName, description, scriptPath, parameters = null) {
+        super(id, originalName, description, parameters);
         this.scriptPath = scriptPath;
-        
-        /**
-         * Pythonスクリプト実行サービス
-         * @type {Object}
-         * @private
-         */
-        this.pythonService = pythonService;
-    }
-
-    /**
-     * スクリプトパスを取得
-     * @returns {string} スクリプトパス
-     */
-    getScriptPath() {
-        return this.scriptPath;
-    }
-
-    /**
-     * スクリプトパスを設定
-     * @param {string} path - 新しいスクリプトパス
-     */
-    setScriptPath(path) {
-        this.scriptPath = path;
     }
 
     /**
@@ -60,40 +29,25 @@ export default class Block extends Entry {
         if (!this.scriptPath) {
             throw new Error('Pythonスクリプトのパスが設定されていません');
         }
-        
-        // Pythonサービスの検証
-        if (!this.pythonService) {
-            throw new Error('Pythonサービスが設定されていません');
-        }
     }
 
     /**
      * 実際の実行処理
-     * @returns {Promise<void>}
-     * @throws {Error} 実行エラーが発生した場合
+     * @param {Object} inputParams - 入力パラメータの値を含むオブジェクト {paramName: value, ...}
+     * @returns {Promise<Object>} 出力パラメータの値を含むオブジェクト {paramName: value, ...}
+     * @throws {Error}
      * @override
      */
-    async executeInternal() {
+    async executeInternal(inputParams) {
         try {
-            // 入力パラメータの収集
-            const inputParams = {};
-            this.parameters.inputs.forEach((param, paramId) => {
-                inputParams[paramId] = param.value;
-            });
-            
-            // Pythonスクリプトの実行
-            const result = await this.pythonService.executeScript(
+            // スクリプトの実行（入力パラメータはEntry.jsから受け取る）
+            const response = await window.pythonApi.executeScript(
                 this.scriptPath,
                 inputParams
             );
-            
-            // 出力パラメータの設定
-            if (result && typeof result === 'object') {
-                Object.entries(result).forEach(([paramId, value]) => {
-                    this.setParameterValue(paramId, value, 'outputs');
-                });
-            }
+            return response;
         } catch (error) {
+            // 実行時エラーは上位に伝播させる
             throw new Error(`Pythonスクリプト実行エラー: ${error.message}`);
         }
     }

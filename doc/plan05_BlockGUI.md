@@ -16,6 +16,8 @@ RecipeArea.vueにドロップされたブロックの表示機能を実装する
   3. 「入力/出力パラメータ表示切替トグルボタン」で、選択状態のブロック矩形に表示される各パラメータの入力/出力を切り替え
   4. ブロック選択状態で規定幅に全内容が表示しきれない場合、パラメータ関連の代わりに「...ボタン」を表示
   5. 「...ボタン」クリックでパラメータ一覧ダイアログを表示。「...ボタン」または他の要素クリックで非表示
+  6. ブロック再生ボタンを押すと対応するPythonスクリプトを実行する
+  7. ブロック削除ボタンを押すと表示されているブロック矩形を削除し、インスタンスも解放する。
 
 ## 3. コンポーネント構成
 
@@ -147,3 +149,89 @@ sequenceDiagram
 3. BlockDialog.vueの作成
    - モーダルダイアログの実装
    - パラメータ一覧表示
+
+## 8. Pythonスクリプト実行フロー
+
+ブロック再生ボタンを押してからPythonスクリプトが実行されるまでの処理フローを以下に示します。
+
+```mermaid
+sequenceDiagram
+    participant User as ユーザー
+    participant BlockVue as Block.vue
+    participant BlockJS as Block.js
+    participant API as window.pythonApi
+    participant Preload as preload.js
+    participant Main as background.js
+    participant Service as PythonService.js
+    participant Manager as PythonProcessManager.js
+    participant Server as python_server.py
+    participant Script as Pythonスクリプト
+    
+    User->>BlockVue: 再生ボタンクリック
+    BlockVue->>BlockVue: executeBlock()
+    BlockVue->>BlockJS: execute()
+    BlockVue->>BlockVue: isExecuting = true
+    
+    BlockJS->>BlockJS: executeInternal()
+    BlockJS->>BlockJS: 入力パラメータ収集
+    BlockJS->>API: executeScript(scriptPath, params)
+    
+    API->>Preload: ipcRenderer.invoke('execute-python-script', ...)
+    Preload->>Main: IPC通信
+    
+    Main->>Service: executeScript(scriptName, params)
+    Service->>Service: スクリプトパス解決
+    Service->>Manager: executeScript(scriptPath, params)
+    
+    Manager->>Server: WebSocket: {script_path, params}
+    Server->>Server: load_and_execute()
+    Server->>Script: execute(**params)
+    
+    Script-->>Server: 実行結果
+    Server-->>Manager: 結果をJSON形式で返送
+    Manager-->>Service: 結果
+    Service-->>Main: 結果
+    Main-->>Preload: 結果
+    Preload-->>API: 結果
+    
+    API-->>BlockJS: 結果
+    BlockJS->>BlockJS: 出力パラメータ設定
+    BlockJS-->>BlockVue: 実行完了
+    BlockVue->>BlockVue: isExecuting = false
+    BlockVue->>User: 実行状態表示更新
+```
+
+### 処理詳細
+
+1. **ユーザーアクション**
+   - ユーザーがBlock.vueコンポーネントの再生ボタンをクリック
+
+2. **フロントエンド処理**
+   - Block.vueの`executeBlock()`メソッドが呼び出される
+   - 実行状態フラグ`isExecuting`をtrueに設定（ブロック枠の点滅開始）
+   - Block.jsインスタンスの`execute()`メソッドを呼び出し
+
+3. **Block.js処理**
+   - `executeInternal()`メソッドが実行される
+   - 入力パラメータを収集
+   - `window.pythonApi.executeScript()`を呼び出し
+
+4. **IPC通信**
+   - preload.jsが`ipcRenderer.invoke('execute-python-script', ...)`を実行
+   - background.jsのIPCハンドラが呼び出される
+
+5. **バックエンド処理**
+   - PythonService.jsの`executeScript()`メソッドが呼び出される
+   - スクリプトパスが解決される
+   - PythonProcessManager.jsの`executeScript()`メソッドが呼び出される
+
+6. **Python処理**
+   - WebSocketを通じてpython_server.pyにリクエスト送信
+   - python_server.pyが指定されたスクリプトを動的にロード
+   - スクリプトの`execute()`関数がパラメータ付きで実行される
+
+7. **結果返送**
+   - 実行結果が逆の経路でBlock.jsに返送される
+   - Block.jsが出力パラメータを設定
+   - Block.vueの実行状態フラグ`isExecuting`がfalseに設定（ブロック枠の点滅終了）
+   - ユーザーに実行状態の変化が視覚的に表示される
