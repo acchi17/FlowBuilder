@@ -40,11 +40,14 @@ export default class Block extends Entry {
      */
     async executeInternal(inputParams) {
         try {
+            console.log(`scriptPath:${this.scriptPath}`)
+            console.log(inputParams)
             // スクリプトの実行（入力パラメータはEntry.jsから受け取る）
             const response = await window.pythonApi.executeScript(
                 this.scriptPath,
                 inputParams
             );
+            console.log(response)
             return response;
         } catch (error) {
             // 実行時エラーは上位に伝播させる

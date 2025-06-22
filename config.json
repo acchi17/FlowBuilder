@@ -1,3 +1,4 @@
 {
-  "pythonDir": "C:/Work/python-3.12.10-embed-amd64"
+  "pythonDirPath": "C:/Work/python-3.12.10-embed-amd64",
+  "pythonServerPath": "python_server/python_server.py"
 }

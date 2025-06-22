@@ -3,20 +3,34 @@ const WebSocket = require('ws');
 const path = require('path');
 const fs = require('fs');
 
-// プロジェクトルートのconfig.jsonからpythonDirを取得
+// プロジェクトルートのconfig.jsonから設定を取得
 let pythonPath = 'python';
+let pythonServerPath = 'python_server.py';
+
 try {
     const configPath = path.resolve(process.cwd(), 'config.json');
     if (fs.existsSync(configPath)) {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-        if (config.pythonDir) {
+        
+        // Python実行パスの設定
+        if (config.pythonDirPath) {
             // OSごとに実行ファイル名を決定
+            const exeName = process.platform === 'win32' ? 'python.exe' : 'python';
+            pythonPath = path.join(config.pythonDirPath, exeName);
+        } else if (config.pythonDir) {
+            // 後方互換性のため旧設定名もサポート（警告付き）
+            console.warn('config.json: "pythonDir"は非推奨です。"pythonDirPath"を使用してください。');
             const exeName = process.platform === 'win32' ? 'python.exe' : 'python';
             pythonPath = path.join(config.pythonDir, exeName);
         }
+        
+        // Python サーバーパスの設定
+        if (config.pythonServerPath) {
+            pythonServerPath = config.pythonServerPath;
+        }
     }
 } catch (e) {
-    console.warn('config.jsonの読み込みに失敗しました。デフォルトのpythonを使用します。', e);
+    console.warn('config.jsonの読み込みに失敗しました。デフォルト値を使用します。', e);
 }
 
 /**
@@ -54,8 +68,10 @@ class PythonProcessManager {
         });
 
         try {
-            // python_server.pyの絶対パスを取得
-            const serverPath = path.resolve(process.cwd(), 'python_server.py');
+            // python_server.pyの絶対パスを取得（設定可能）
+            const serverPath = path.isAbsolute(pythonServerPath) 
+                ? pythonServerPath 
+                : path.resolve(process.cwd(), pythonServerPath);
             
             // ファイルの存在確認
             if (!fs.existsSync(serverPath)) {
