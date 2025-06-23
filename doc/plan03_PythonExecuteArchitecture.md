@@ -196,7 +196,7 @@ contextBridge.exposeInMainWorld('pythonApi', {
 
 - **役割**: シングルトンサービス
 - **機能**:
-  - スクリプトディレクトリの管理（`python_scripts/`）
+  - スクリプトディレクトリの管理（config.jsonで設定可能）
   - PythonProcessManagerの管理
   - スクリプト実行の抽象化
   - スクリプトディレクトリの自動作成
@@ -218,33 +218,38 @@ contextBridge.exposeInMainWorld('pythonApi', {
 ```json
 {
   "pythonDirPath": "C:/Python39",
-  "pythonServerPath": "python_server.py"
+  "pythonServerPath": "python_server.py",
+  "pythonBlocksDir": "python_scripts"
 }
 ```
 
 **設定項目の説明:**
 - `pythonDirPath`: Pythonインタプリタが配置されているディレクトリの絶対パス
 - `pythonServerPath`: python_server.pyファイルのパス（相対パスまたは絶対パス）
+- `pythonBlocksDir`: Pythonブロックスクリプトが配置されているディレクトリのパス（相対パスまたは絶対パス）
 
 **設定例:**
 ```json
 {
   "pythonDirPath": "C:/Python39",
-  "pythonServerPath": "python_server.py"           // プロジェクトルート相対
+  "pythonServerPath": "python_server.py",          // プロジェクトルート相対
+  "pythonBlocksDir": "python_scripts"              // デフォルトのスクリプトディレクトリ
 }
 ```
 
 ```json
 {
   "pythonDirPath": "C:/Python39",
-  "pythonServerPath": "./scripts/python_server.py" // サブディレクトリ
+  "pythonServerPath": "./scripts/python_server.py", // サブディレクトリ
+  "pythonBlocksDir": "./my_python_blocks"           // カスタムスクリプトディレクトリ
 }
 ```
 
 ```json
 {
   "pythonDirPath": "C:/Python39",
-  "pythonServerPath": "C:/MyScripts/python_server.py" // 絶対パス
+  "pythonServerPath": "C:/MyScripts/python_server.py", // 絶対パス
+  "pythonBlocksDir": "C:/MyBlocks/python_scripts"      // 絶対パスでのスクリプトディレクトリ
 }
 ```
 
@@ -345,7 +350,7 @@ def execute(paramDict):
 ## セキュリティ考慮事項
 
 - **contextBridge**: レンダラープロセスからの安全なAPI公開
-- **スクリプト制限**: 実行は指定されたディレクトリ（`python_scripts/`）内のみに制限
+- **スクリプト制限**: 実行はconfig.jsonで指定されたディレクトリ（デフォルト: `python_scripts/`）内のみに制限
 - **WebSocket制限**: 接続はローカルホスト（localhost:8765）のみに制限
 - **パスバリデーション**: スクリプトパスの厳密なバリデーションを実施
 - **ファイル権限**: スクリプトファイルの読み取り権限チェック

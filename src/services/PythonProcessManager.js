@@ -17,11 +17,6 @@ try {
             // OSごとに実行ファイル名を決定
             const exeName = process.platform === 'win32' ? 'python.exe' : 'python';
             pythonPath = path.join(config.pythonDirPath, exeName);
-        } else if (config.pythonDir) {
-            // 後方互換性のため旧設定名もサポート（警告付き）
-            console.warn('config.json: "pythonDir"は非推奨です。"pythonDirPath"を使用してください。');
-            const exeName = process.platform === 'win32' ? 'python.exe' : 'python';
-            pythonPath = path.join(config.pythonDir, exeName);
         }
         
         // Python サーバーパスの設定

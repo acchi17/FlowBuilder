@@ -12,13 +12,15 @@ const VUEJS3_DEVTOOLS_ID = 'nhdogjmejiglipccpnnnanhbledajbpd'
 // Pythonサービスのインポート
 const PythonService = require('./services/PythonService')
 
+// 設定ファイルの読み込み
+const fs = require('fs')
+const config = JSON.parse(fs.readFileSync('config.json', 'utf8'))
+
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
 
-// Pythonスクリプトディレクトリ
-const PYTHON_SCRIPTS_DIR = 'python_scripts'
 
 async function createWindow() {
   // Create the browser window.
@@ -58,7 +60,7 @@ app.on('window-all-closed', () => {
 // Pythonサービスの初期化
 async function initializePythonService() {
   try {
-    await PythonService.initialize(PYTHON_SCRIPTS_DIR)
+    await PythonService.initialize(config.pythonBlocksDirPath)
     console.log('Python service initialized successfully')
   } catch (error) {
     console.error(`Failed to initialize Python service: ${error}`)
